@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/harshitkumar7525/RapidQuiz/backend/database"
 	"github.com/harshitkumar7525/RapidQuiz/backend/models"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -53,4 +54,33 @@ func CreateQuiz(c *gin.Context) {
 		"message": "quiz created successfully",
 		"quiz":    quiz,
 	})
+}
+
+func GetQuizzes(c *gin.Context) {
+	userID := c.Param("id")
+
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user ID",
+		})
+		return
+	}
+
+	var quizzes []models.Quiz
+
+	err = database.Collection("quizzes").
+		Find(context.Background(), bson.M{
+			"created_by": objID,
+		}).
+		All(&quizzes)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, quizzes)
 }

@@ -19,6 +19,7 @@ type GameSession struct {
 	ID     primitive.ObjectID `bson:"_id,omitempty"`
 	QuizID primitive.ObjectID `bson:"quiz_id"`
 	HostID primitive.ObjectID `bson:"host_id"`
+	RoomCode string             `bson:"room_code"`
 
 	Status GameStatus `bson:"status"`
 
