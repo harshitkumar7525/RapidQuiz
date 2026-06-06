@@ -6,6 +6,6 @@ type Question struct {
 	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Question      string             `bson:"question" json:"question"`
 	Options       []string           `bson:"options" json:"options"`
-	CorrectAnswer string             `bson:"correct_answer" json:"correct_option"`
+	CorrectAnswer string             `bson:"correct_answer" json:"-"`
 	TimeLimit     int                `bson:"time_limit" json:"time_limit"`
 }
