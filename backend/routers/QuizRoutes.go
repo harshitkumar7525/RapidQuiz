@@ -6,8 +6,9 @@ import (
 )
 
 func RegisterQuizRoutes(server *gin.Engine) {
-	server.POST("/quizzes", controllers.CreateQuiz)
-	server.GET("/quizzes/:id", controllers.GetQuizzes)
-	server.PATCH("/quizzes/:quizId/:userId", controllers.UpdateQuiz)
-	server.DELETE("/quizzes/:quizId/:userId", controllers.DeleteQuiz)
+	quizGrp := server.Group("/quizzes")
+	quizGrp.POST("/", controllers.CreateQuiz)
+	quizGrp.GET("/:id", controllers.GetQuizzes)
+	quizGrp.PATCH("/:quizId/:userId", controllers.UpdateQuiz)
+	quizGrp.DELETE("/:quizId/:userId", controllers.DeleteQuiz)
 }
