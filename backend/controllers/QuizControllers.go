@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/harshitkumar7525/RapidQuiz/backend/database"
 	"github.com/harshitkumar7525/RapidQuiz/backend/models"
+	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -154,5 +155,48 @@ func UpdateQuiz(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "quiz updated successfully",
+	})
+}
+
+func DeleteQuiz(c *gin.Context) {
+	quizID := c.Param("quizId")
+	userID := c.Param("userId")
+
+	quizObjID, err := primitive.ObjectIDFromHex(quizID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid quiz ID",
+		})
+		return
+	}
+
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user ID",
+		})
+		return
+	}
+	err = database.Collection("quizzes").
+		Remove(context.Background(), bson.M{
+			"_id":        quizObjID,
+			"created_by": userObjID,
+		})
+
+	if err != nil {
+		if err == qmgo.ErrNoSuchDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "quiz not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to delete quiz",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "quiz deleted successfully",
 	})
 }
