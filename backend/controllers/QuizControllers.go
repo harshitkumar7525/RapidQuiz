@@ -84,3 +84,75 @@ func GetQuizzes(c *gin.Context) {
 
 	c.JSON(http.StatusOK, quizzes)
 }
+
+func UpdateQuiz(c *gin.Context) {
+	quizID := c.Param("quizId")
+	userID := c.Param("userId")
+
+	quizObjID, err := primitive.ObjectIDFromHex(quizID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid quiz ID",
+		})
+		return
+	}
+
+	userObjID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user ID",
+		})
+		return
+	}
+
+	var quiz models.Quiz
+
+	err = database.Collection("quizzes").
+		Find(context.Background(), bson.M{
+			"_id":        quizObjID,
+			"created_by": userObjID,
+		}).
+		One(&quiz)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "quiz not found or you do not have permission to update it",
+		})
+		return
+	}
+
+	var updateData models.Quiz
+
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"title":       updateData.Title,
+			"description": updateData.Description,
+			"questions":   updateData.Questions,
+			"updated_at":  time.Now(),
+		},
+	}
+
+	err = database.Collection("quizzes").
+		UpdateOne(context.Background(), bson.M{
+			"_id":        quizObjID,
+			"created_by": userObjID,
+		}, update)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to update quiz",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "quiz updated successfully",
+	})
+}

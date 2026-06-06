@@ -8,4 +8,5 @@ import (
 func RegisterQuizRoutes(server *gin.Engine) {
 	server.POST("/quizzes", controllers.CreateQuiz)
 	server.GET("/quizzes/:id", controllers.GetQuizzes)
+	server.PATCH("/quizzes/:quizId/:userId", controllers.UpdateQuiz)
 }
