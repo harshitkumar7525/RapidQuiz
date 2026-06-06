@@ -17,6 +17,7 @@ func main() {
 	database.Connect()
 	defer database.Disconnect()
 	server := gin.Default()
+	routers.RegisterAuthRoutes(server)
 	routers.RegisterQuizRoutes(server)
 	port := os.Getenv("PORT")
 	if port == "" {
