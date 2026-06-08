@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -36,6 +37,15 @@ func CreateQuiz(c *gin.Context) {
 			"error": "quiz must contain at least one question",
 		})
 		return
+	}
+
+	for i, q := range quiz.Questions {
+		if err := q.Validate(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("question %d: %s", i+1, err.Error()),
+			})
+			return
+		}
 	}
 
 	quiz.ID = primitive.NewObjectID()
@@ -113,6 +123,15 @@ func UpdateQuiz(c *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	for i, q := range updateData.Questions {
+		if err := q.Validate(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("question %d: %s", i+1, err.Error()),
+			})
+			return
+		}
 	}
 
 	update := bson.M{
