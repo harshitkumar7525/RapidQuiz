@@ -14,6 +14,7 @@ import (
 )
 
 func CreateQuiz(c *gin.Context) {
+	userId := GetPrimitiveUserID(c)
 	var quiz models.Quiz
 
 	if err := c.ShouldBindJSON(&quiz); err != nil {
@@ -40,6 +41,7 @@ func CreateQuiz(c *gin.Context) {
 	quiz.ID = primitive.NewObjectID()
 	quiz.CreatedAt = time.Now()
 	quiz.UpdatedAt = time.Now()
+	quiz.CreatedBy = userId
 
 	_, err := database.Collection("quizzes").
 		InsertOne(context.Background(), quiz)
@@ -57,21 +59,12 @@ func CreateQuiz(c *gin.Context) {
 }
 
 func GetQuizzes(c *gin.Context) {
-	userID := c.Param("id")
-
-	objID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid user ID",
-		})
-		return
-	}
-
+	userID := GetPrimitiveUserID(c)
 	var quizzes []models.Quiz
 
-	err = database.Collection("quizzes").
+	err := database.Collection("quizzes").
 		Find(context.Background(), bson.M{
-			"created_by": objID,
+			"created_by": userID,
 		}).
 		All(&quizzes)
 
@@ -87,7 +80,7 @@ func GetQuizzes(c *gin.Context) {
 
 func UpdateQuiz(c *gin.Context) {
 	quizID := c.Param("quizId")
-	userID := c.Param("userId")
+	userId := GetPrimitiveUserID(c)
 
 	quizObjID, err := primitive.ObjectIDFromHex(quizID)
 	if err != nil {
@@ -97,20 +90,12 @@ func UpdateQuiz(c *gin.Context) {
 		return
 	}
 
-	userObjID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid user ID",
-		})
-		return
-	}
-
 	var quiz models.Quiz
 
 	err = database.Collection("quizzes").
 		Find(context.Background(), bson.M{
 			"_id":        quizObjID,
-			"created_by": userObjID,
+			"created_by": userId,
 		}).
 		One(&quiz)
 
@@ -142,7 +127,7 @@ func UpdateQuiz(c *gin.Context) {
 	err = database.Collection("quizzes").
 		UpdateOne(context.Background(), bson.M{
 			"_id":        quizObjID,
-			"created_by": userObjID,
+			"created_by": userId,
 		}, update)
 
 	if err != nil {
@@ -159,7 +144,7 @@ func UpdateQuiz(c *gin.Context) {
 
 func DeleteQuiz(c *gin.Context) {
 	quizID := c.Param("quizId")
-	userID := c.Param("userId")
+	userId := GetPrimitiveUserID(c)
 
 	quizObjID, err := primitive.ObjectIDFromHex(quizID)
 	if err != nil {
@@ -169,17 +154,10 @@ func DeleteQuiz(c *gin.Context) {
 		return
 	}
 
-	userObjID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid user ID",
-		})
-		return
-	}
 	err = database.Collection("quizzes").
 		Remove(context.Background(), bson.M{
 			"_id":        quizObjID,
-			"created_by": userObjID,
+			"created_by": userId,
 		})
 
 	if err != nil {
@@ -198,4 +176,45 @@ func DeleteQuiz(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "quiz deleted successfully",
 	})
+}
+
+func GetQuizByID(c *gin.Context) {
+	quizId := c.Param("quizId")
+
+	quizObjID, err := primitive.ObjectIDFromHex(quizId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid quiz ID",
+		})
+		return
+	}
+
+	var quiz models.Quiz
+
+	err = database.Collection("quizzes").
+		Find(context.Background(), bson.M{
+			"_id": quizObjID,
+		}).
+		One(&quiz)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "quiz not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, quiz)
+}
+
+func GetPrimitiveUserID(c *gin.Context) primitive.ObjectID {
+	StringuserID := c.MustGet("userId").(string)
+	userId, err := primitive.ObjectIDFromHex(StringuserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user ID",
+		})
+		return primitive.NilObjectID
+	}
+	return userId
 }

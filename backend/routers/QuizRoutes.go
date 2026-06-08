@@ -7,9 +7,10 @@ import (
 )
 
 func RegisterQuizRoutes(server *gin.Engine) {
+	server.GET("/quizzes/:quizId", controllers.GetQuizByID)
 	quizGrp := server.Group("/quizzes", middlewares.AuthMiddleware)
 	quizGrp.POST("/", controllers.CreateQuiz)
-	quizGrp.GET("/:id", controllers.GetQuizzes)
-	quizGrp.PATCH("/:quizId/:userId", controllers.UpdateQuiz)
-	quizGrp.DELETE("/:quizId/:userId", controllers.DeleteQuiz)
+	quizGrp.GET("/", controllers.GetQuizzes)
+	quizGrp.PATCH("/:quizId", controllers.UpdateQuiz)
+	quizGrp.DELETE("/:quizId", controllers.DeleteQuiz)
 }
