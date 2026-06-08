@@ -16,10 +16,12 @@ func main() {
 	}
 	database.Connect()
 	defer database.Disconnect()
+	database.ConnectRedis()
 	server := gin.Default()
 	routers.RegisterAuthRoutes(server)
 	routers.RegisterQuizRoutes(server)
 	routers.RegisterGameRoutes(server)
+	routers.RegisterLeaderboardRoutes(server)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

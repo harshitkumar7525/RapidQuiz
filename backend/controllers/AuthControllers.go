@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -12,22 +13,22 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func RegisterHandler(context *gin.Context) {
+func RegisterHandler(c *gin.Context) {
 	var userData struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	if err := context.ShouldBindJSON(&userData); err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{
+	if err := c.ShouldBindJSON(&userData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	if userData.Name == "" || userData.Email == "" || userData.Password == "" {
-		context.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "all fields are required",
 		})
 		return
@@ -36,13 +37,13 @@ func RegisterHandler(context *gin.Context) {
 	var existingUser models.User
 
 	err := database.Collection("users").
-		Find(context, bson.M{
+		Find(context.Background(), bson.M{
 			"email": userData.Email,
 		}).
 		One(&existingUser)
 
 	if err == nil {
-		context.JSON(http.StatusConflict, gin.H{
+		c.JSON(http.StatusConflict, gin.H{
 			"error": "email already registered",
 		})
 		return
@@ -60,45 +61,45 @@ func RegisterHandler(context *gin.Context) {
 	}
 
 	_, err = database.Collection("users").
-		InsertOne(context, user)
+		InsertOne(context.Background(), user)
 
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to register user",
 		})
 		return
 	}
 
-	jwtTToken, err := utils.GenerateJWT(user.ID.Hex())
+	jwtToken, err := utils.GenerateJWT(user.ID.Hex())
 
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to generate token",
 		})
 		return
 	}
 
-	context.JSON(http.StatusCreated, gin.H{
+	c.JSON(http.StatusCreated, gin.H{
 		"message": "user registered successfully",
-		"token":   jwtTToken,
+		"token":   jwtToken,
 	})
 }
 
-func LoginHandler(context *gin.Context) {
+func LoginHandler(c *gin.Context) {
 	var loginData struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	if err := context.ShouldBindJSON(&loginData); err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{
+	if err := c.ShouldBindJSON(&loginData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	if loginData.Email == "" || loginData.Password == "" {
-		context.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "email and password are required",
 		})
 		return
@@ -107,36 +108,36 @@ func LoginHandler(context *gin.Context) {
 	var user models.User
 
 	err := database.Collection("users").
-		Find(context, bson.M{
+		Find(context.Background(), bson.M{
 			"email": loginData.Email,
 		}).
 		One(&user)
 
 	if err != nil {
-		context.JSON(http.StatusUnauthorized, gin.H{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "invalid email or password",
 		})
 		return
 	}
 
 	if !utils.CheckPasswordHash(loginData.Password, user.Password) {
-		context.JSON(http.StatusUnauthorized, gin.H{
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "invalid email or password",
 		})
 		return
 	}
 
-	jwtTToken, err := utils.GenerateJWT(user.ID.Hex())
+	jwtToken, err := utils.GenerateJWT(user.ID.Hex())
 
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to generate token",
 		})
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "login successful",
-		"token":   jwtTToken,
+		"token":   jwtToken,
 	})
 }
