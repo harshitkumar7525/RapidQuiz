@@ -69,8 +69,18 @@ func RegisterHandler(context *gin.Context) {
 		return
 	}
 
+	jwtTToken, err := utils.GenerateJWT(user.ID.Hex())
+
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate token",
+		})
+		return
+	}
+
 	context.JSON(http.StatusCreated, gin.H{
 		"message": "user registered successfully",
+		"token":   jwtTToken,
 	})
 }
 
@@ -116,7 +126,17 @@ func LoginHandler(context *gin.Context) {
 		return
 	}
 
+	jwtTToken, err := utils.GenerateJWT(user.ID.Hex())
+
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate token",
+		})
+		return
+	}
+
 	context.JSON(http.StatusOK, gin.H{
 		"message": "login successful",
+		"token":   jwtTToken,
 	})
 }
