@@ -9,13 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/harshitkumar7525/RapidQuiz/backend/database"
 	"github.com/harshitkumar7525/RapidQuiz/backend/models"
+	"github.com/harshitkumar7525/RapidQuiz/backend/utils"
 	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func CreateQuiz(c *gin.Context) {
-	userId := GetPrimitiveUserID(c)
+	userId := utils.GetPrimitiveUserID(c)
 	var quiz models.Quiz
 
 	if err := c.ShouldBindJSON(&quiz); err != nil {
@@ -69,7 +70,7 @@ func CreateQuiz(c *gin.Context) {
 }
 
 func GetQuizzes(c *gin.Context) {
-	userID := GetPrimitiveUserID(c)
+	userID := utils.GetPrimitiveUserID(c)
 	var quizzes []models.Quiz
 
 	err := database.Collection("quizzes").
@@ -90,7 +91,7 @@ func GetQuizzes(c *gin.Context) {
 
 func UpdateQuiz(c *gin.Context) {
 	quizID := c.Param("quizId")
-	userId := GetPrimitiveUserID(c)
+	userId := utils.GetPrimitiveUserID(c)
 
 	quizObjID, err := primitive.ObjectIDFromHex(quizID)
 	if err != nil {
@@ -163,7 +164,7 @@ func UpdateQuiz(c *gin.Context) {
 
 func DeleteQuiz(c *gin.Context) {
 	quizID := c.Param("quizId")
-	userId := GetPrimitiveUserID(c)
+	userId := utils.GetPrimitiveUserID(c)
 
 	quizObjID, err := primitive.ObjectIDFromHex(quizID)
 	if err != nil {
@@ -224,16 +225,4 @@ func GetQuizByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, quiz)
-}
-
-func GetPrimitiveUserID(c *gin.Context) primitive.ObjectID {
-	StringuserID := c.MustGet("userId").(string)
-	userId, err := primitive.ObjectIDFromHex(StringuserID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid user ID",
-		})
-		return primitive.NilObjectID
-	}
-	return userId
 }

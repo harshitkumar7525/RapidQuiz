@@ -19,6 +19,7 @@ func main() {
 	server := gin.Default()
 	routers.RegisterAuthRoutes(server)
 	routers.RegisterQuizRoutes(server)
+	routers.RegisterGameRoutes(server)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
