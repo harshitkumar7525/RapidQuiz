@@ -22,7 +22,7 @@ func main() {
 	server := gin.Default()
 
 	server.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8081"},
+		AllowOrigins:     []string{os.Getenv("CLIENT_URL")},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
