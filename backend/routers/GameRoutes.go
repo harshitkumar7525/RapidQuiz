@@ -8,4 +8,5 @@ import (
 
 func RegisterGameRoutes(server *gin.Engine) {
 	server.POST("/games/create", middlewares.AuthMiddleware, controllers.StartGame)
+	server.POST("/games/join", controllers.JoinGame)
 }
