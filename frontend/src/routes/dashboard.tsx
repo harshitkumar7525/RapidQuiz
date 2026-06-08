@@ -3,6 +3,16 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, getToken, type Quiz } from "../lib/api";
 import { Styles } from "./login";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "My Quizzes — RapidQuiz" }] }),
@@ -12,6 +22,10 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const nav = useNavigate();
   const [ready, setReady] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Quiz | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     if (!getToken()) nav({ to: "/login" });
     else setReady(true);
@@ -32,17 +46,22 @@ function Dashboard() {
       });
       nav({ to: "/host/$gameId", params: { gameId: res.game_id }, search: { code: res.room_code } });
     } catch (e: any) {
-      alert(e.message);
+      setDeleteError(e.message);
     }
   }
 
-  async function deleteQuiz(quizId: string) {
-    if (!confirm("Delete this quiz?")) return;
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await api(`/quizzes/${quizId}`, { method: "DELETE", auth: true });
+      await api(`/quizzes/${deleteTarget.id}`, { method: "DELETE", auth: true });
+      setDeleteTarget(null);
       refetch();
     } catch (e: any) {
-      alert(e.message);
+      setDeleteError(e.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -57,6 +76,7 @@ function Dashboard() {
 
       {isLoading && <p className="mt-8 text-muted-foreground">Loading…</p>}
       {error && <p className="mt-8 text-destructive">{(error as Error).message}</p>}
+      {deleteError && <p className="mt-4 text-destructive text-sm">{deleteError}</p>}
 
       {data && data.length === 0 && (
         <div className="mt-12 card text-center">
@@ -76,11 +96,41 @@ function Dashboard() {
             <div className="flex flex-wrap gap-2 mt-4">
               <button onClick={() => startGame(q.id)} className="btn-primary">Start game</button>
               <Link to="/quizzes/$quizId/edit" params={{ quizId: q.id }} className="btn-secondary">Edit</Link>
-              <button onClick={() => deleteQuiz(q.id)} className="btn-ghost text-destructive">Delete</button>
+              <button
+                onClick={() => { setDeleteError(null); setDeleteTarget(q); }}
+                className="btn-ghost text-destructive"
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* React-based confirmation dialog — replaces window.confirm() which is
+          silently blocked in sandboxed iframes (e.g. Lovable preview) */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete quiz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{deleteTarget?.title}" will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p className="text-destructive text-sm px-1">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Styles />
     </main>
   );

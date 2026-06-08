@@ -3,7 +3,9 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/harshitkumar7525/RapidQuiz/backend/database"
 	"github.com/harshitkumar7525/RapidQuiz/backend/routers"
@@ -18,6 +20,16 @@ func main() {
 	defer database.Disconnect()
 	database.ConnectRedis()
 	server := gin.Default()
+
+	server.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:8081"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	routers.RegisterAuthRoutes(server)
 	routers.RegisterQuizRoutes(server)
 	routers.RegisterGameRoutes(server)

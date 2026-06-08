@@ -94,7 +94,36 @@ func SubmitAnswer(c *gin.Context) {
 		if timeLimit <= 0 {
 			timeLimit = 30
 		}
-		score = 100 + timeLimit
+
+		// Calculate how many seconds the player took to answer.
+		// QuestionStartedAt is stamped when the host starts the game or advances
+		// to this question. If it's missing (old sessions), fall back to full score.
+		elapsedSeconds := 0.0
+		if game.QuestionStartedAt != nil {
+			elapsedSeconds = time.Since(*game.QuestionStartedAt).Seconds()
+			if elapsedSeconds < 0 {
+				elapsedSeconds = 0
+			}
+		}
+
+		// Scoring formula:
+		//   Base score:  100 points for a correct answer
+		//   Time bonus:  up to 100 extra points, scaling linearly from full marks
+		//                (answered instantly) down to 0 (answered at the last second)
+		//
+		//   timeBonus = 100 * max(0, (timeLimit - elapsed) / timeLimit)
+		//
+		// Example with a 30-second question:
+		//   answered in  1s → timeBonus = 97  → total = 197
+		//   answered in 15s → timeBonus = 50  → total = 150
+		//   answered in 29s → timeBonus =  3  → total = 103
+		//   answered in 30s → timeBonus =  0  → total = 100
+		remaining := float64(timeLimit) - elapsedSeconds
+		if remaining < 0 {
+			remaining = 0
+		}
+		timeBonus := int(100.0 * remaining / float64(timeLimit))
+		score = 100 + timeBonus
 	}
 
 	answer := models.Answer{

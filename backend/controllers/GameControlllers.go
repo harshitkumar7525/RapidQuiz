@@ -92,6 +92,120 @@ func StartGame(c *gin.Context) {
 	})
 }
 
+func GetGameByID(c *gin.Context) {
+	gameIDHex := c.Param("gameId")
+
+	gameObjID, err := primitive.ObjectIDFromHex(gameIDHex)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid game id"})
+		return
+	}
+
+	var game models.GameSession
+	if err := database.Collection("game_sessions").
+		Find(context.Background(), bson.M{"_id": gameObjID}).
+		One(&game); err != nil {
+		c.JSON(404, gin.H{"error": "game not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"game_id":          game.ID.Hex(),
+		"quiz_id":          game.QuizID.Hex(),
+		"room_code":        game.RoomCode,
+		"status":           game.Status,
+		"current_question": game.CurrentQuestion,
+	})
+}
+
+func UpdateGameStatus(c *gin.Context) {
+	gameIDHex := c.Param("gameId")
+	userID := utils.GetPrimitiveUserID(c)
+
+	gameObjID, err := primitive.ObjectIDFromHex(gameIDHex)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid game id"})
+		return
+	}
+
+	var body struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	validStatuses := map[string]bool{
+		"running": true,
+		"paused":  true,
+		"ended":   true,
+	}
+	if !validStatuses[body.Status] {
+		c.JSON(400, gin.H{"error": "invalid status, must be one of: running, paused, ended"})
+		return
+	}
+
+	now := time.Now()
+	updateFields := bson.M{"status": body.Status}
+	if body.Status == "running" {
+		updateFields["started_at"] = now
+		// Stamp when question 0 became active so elapsed time can be calculated
+		updateFields["question_started_at"] = now
+	} else if body.Status == "ended" {
+		updateFields["ended_at"] = now
+	}
+
+	err = database.Collection("game_sessions").
+		UpdateOne(context.Background(),
+			bson.M{"_id": gameObjID, "host_id": userID},
+			bson.M{"$set": updateFields},
+		)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "game not found or you are not the host"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "status updated", "status": body.Status})
+}
+
+func NextQuestion(c *gin.Context) {
+	gameIDHex := c.Param("gameId")
+	userID := utils.GetPrimitiveUserID(c)
+
+	gameObjID, err := primitive.ObjectIDFromHex(gameIDHex)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid game id"})
+		return
+	}
+
+	var game models.GameSession
+	if err := database.Collection("game_sessions").
+		Find(context.Background(), bson.M{"_id": gameObjID, "host_id": userID}).
+		One(&game); err != nil {
+		c.JSON(404, gin.H{"error": "game not found or you are not the host"})
+		return
+	}
+
+	nextIdx := game.CurrentQuestion + 1
+	questionStartedAt := time.Now()
+
+	err = database.Collection("game_sessions").
+		UpdateOne(context.Background(),
+			bson.M{"_id": gameObjID, "host_id": userID},
+			bson.M{"$set": bson.M{
+				"current_question":    nextIdx,
+				"question_started_at": questionStartedAt,
+			}},
+		)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "failed to advance question"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "question advanced", "current_question": nextIdx})
+}
+
 func JoinGame(c *gin.Context) {
 	var request struct {
 		RoomCode string `json:"room_code" binding:"required"`

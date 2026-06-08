@@ -174,11 +174,15 @@ func DeleteQuiz(c *gin.Context) {
 		return
 	}
 
+	ctx := context.Background()
+
+	// First verify the quiz exists and belongs to this user.
+	// qmgo's Remove() silently succeeds even when no document matches,
+	// so we must check ownership explicitly before deleting.
+	var quiz models.Quiz
 	err = database.Collection("quizzes").
-		Remove(context.Background(), bson.M{
-			"_id":        quizObjID,
-			"created_by": userId,
-		})
+		Find(ctx, bson.M{"_id": quizObjID}).
+		One(&quiz)
 
 	if err != nil {
 		if err == qmgo.ErrNoSuchDocuments {
@@ -187,6 +191,23 @@ func DeleteQuiz(c *gin.Context) {
 			})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to fetch quiz",
+		})
+		return
+	}
+
+	if quiz.CreatedBy != userId {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "you do not have permission to delete this quiz",
+		})
+		return
+	}
+
+	err = database.Collection("quizzes").
+		Remove(ctx, bson.M{"_id": quizObjID})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to delete quiz",
 		})
