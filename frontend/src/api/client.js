@@ -1,10 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 export const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
 
-// client.js - temporary debug line
-console.log('API URL:', import.meta.env.VITE_API_URL);
-console.log('WebSocket URL:', import.meta.env.VITE_WS_URL);
-
 export async function api(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;

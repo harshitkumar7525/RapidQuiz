@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, WS_URL } from '../api/client.js';
 
 export default function JoinGame() {
   const [params] = useSearchParams();
@@ -15,9 +15,17 @@ export default function JoinGame() {
     try {
       const body = { room_code: form.room_code.trim().toUpperCase(), name: form.name.trim() };
       const data = await api('/games/join', { method: 'POST', body });
+
+      // Persist participant info for PlayGame
       sessionStorage.setItem(`rq_p_${data.game_id}`, data.participant_id);
       sessionStorage.setItem(`rq_room_${data.game_id}`, body.room_code);
       sessionStorage.setItem(`rq_name_${data.game_id}`, body.name);
+      // Also stash the player_joined payload so PlayGame can announce it
+      // via its own persistent WebSocket (avoids the race where a one-shot
+      // connection here closes before the message is delivered, or where the
+      // host's game_start lands before PlayGame's socket is open).
+      sessionStorage.setItem(`rq_announce_${data.game_id}`, JSON.stringify({ name: body.name, participant_id: data.participant_id }));
+
       nav(`/play/${data.game_id}`);
     } catch (e) { setErr(e.message); }
     finally { setLoading(false); }

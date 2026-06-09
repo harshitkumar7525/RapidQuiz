@@ -161,3 +161,16 @@ input:focus, textarea:focus { border-color: var(--primary); }
   .room-code strong { font-size: 26px; letter-spacing: 0.25em; }
   .container { padding: 16px 14px 48px; }
 }
+
+/* Host running view */
+.host-running { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.host-header { display: flex; justify-content: space-between; align-items: center; }
+.host-opts { pointer-events: none; }
+.host-opt { position: relative; padding: 22px 18px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 16px; font-weight: 600; text-align: left; }
+.host-opt.correct { border-color: var(--accent); background: rgba(0,212,160,0.12); }
+.correct-badge { position: absolute; top: 10px; right: 12px; font-size: 11px; color: var(--accent); font-weight: 700; }
+.host-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
+
+/* Progress bar */
+.progress-bar { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s ease; }
