@@ -13,20 +13,20 @@ export default function JoinGame() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const body = { room_code: form.room_code.trim().toUpperCase(), name: form.name.trim() };
+      const body = { roomCode: form.room_code.trim().toUpperCase(), name: form.name.trim() };
       const data = await api('/games/join', { method: 'POST', body });
 
       // Persist participant info for PlayGame
-      sessionStorage.setItem(`rq_p_${data.game_id}`, data.participant_id);
-      sessionStorage.setItem(`rq_room_${data.game_id}`, body.room_code);
-      sessionStorage.setItem(`rq_name_${data.game_id}`, body.name);
+      sessionStorage.setItem(`rq_p_${data.gameId}`, data.participantId);
+      sessionStorage.setItem(`rq_room_${data.gameId}`, body.roomCode);
+      sessionStorage.setItem(`rq_name_${data.gameId}`, body.name);
       // Also stash the player_joined payload so PlayGame can announce it
       // via its own persistent WebSocket (avoids the race where a one-shot
       // connection here closes before the message is delivered, or where the
       // host's game_start lands before PlayGame's socket is open).
-      sessionStorage.setItem(`rq_announce_${data.game_id}`, JSON.stringify({ name: body.name, participant_id: data.participant_id }));
+      sessionStorage.setItem(`rq_announce_${data.gameId}`, JSON.stringify({ name: body.name, participant_id: data.participantId }));
 
-      nav(`/play/${data.game_id}`);
+      nav(`/play/${data.gameId}`);
     } catch (e) { setErr(e.message); }
     finally { setLoading(false); }
   };

@@ -22,7 +22,7 @@ export default function HostGame() {
   useEffect(() => {
     (async () => {
       try {
-        const sessionData = await api('/games/create', { method: 'POST', token, body: { quiz_id: quizId } });
+        const sessionData = await api('/games/create', { method: 'POST', token, body: { quizId } });
         setSession(sessionData);
         // Load full quiz so we can broadcast it to participants and show progress
         const quizData = await api(`/quizzes/${quizId}`);
@@ -32,7 +32,7 @@ export default function HostGame() {
   }, [quizId, token]);
 
   // 2. WebSocket — listen for players joining
-  const { connected, send } = useGameSocket(session?.room_code, (msg) => {
+  const { connected, send } = useGameSocket(session?.roomCode, (msg) => {
     if (msg.type === 'player_joined' && msg.data) {
       setPlayers(p => {
         // Deduplicate by participant_id or name
@@ -47,10 +47,10 @@ export default function HostGame() {
   const startGame = async () => {
     if (!quiz || !session) return;
     try {
-      await api(`/games/${session.game_id}/status`, {
+      await api(`/games/${session.gameId}/status`, {
         method: 'PATCH',
         token,
-        body: { status: 'running' },
+        body: { status: 'RUNNING' },
       });
     } catch (e) {
       setErr(e.message);
@@ -58,10 +58,10 @@ export default function HostGame() {
     }
     // Combine quiz data and game_start into a single message so participants
     // can never receive game_start before the quiz payload (race-condition fix).
-    send('game_start', { game_id: session.game_id, quiz });
+    send('game_start', { game_id: session.gameId, quiz });
     setGameStatus('running');
     setQIndex(0);
-    startTimer(quiz.questions[0]?.time_limit || 30);
+    startTimer(quiz.questions[0]?.timeLimit || 30);
   };
 
   // 4. Advance to a specific question index (used by Skip + auto-advance)
@@ -72,23 +72,27 @@ export default function HostGame() {
     if (nextIndex >= quiz.questions.length) {
       // Game over — update backend status then broadcast
       try {
-        await api(`/games/${session.game_id}/status`, {
+        await api(`/games/${session.gameId}/status`, {
           method: 'PATCH',
           token,
-          body: { status: 'ended' },
+          body: { status: 'ENDED' },
         });
       } catch (_) { /* non-critical, navigate anyway */ }
-      send('game_end', { game_id: session.game_id });
+      send('game_end', { game_id: session.gameId });
       setGameStatus('ended');
-      nav(`/leaderboard/${session.game_id}`);
+      nav(`/leaderboard/${session.gameId}`);
       return;
     }
 
     // Stamp question_started_at on the backend BEFORE broadcasting next_question
     // so the elapsed-time scoring is anchored to the correct server timestamp.
+    // Note: the Spring Boot backend also broadcasts its own "next_question"
+    // WS event from this call (with a `questionIndex` field, not `index`) —
+    // PlayGame.jsx is written to accept either key, so both this manual
+    // broadcast and the server's broadcast resolve to the same question.
     try {
-      await api(`/games/${session.game_id}/next`, {
-        method: 'POST',
+      await api(`/games/${session.gameId}/next-question`, {
+        method: 'PATCH',
         token,
         body: { index: nextIndex },
       });
@@ -96,7 +100,7 @@ export default function HostGame() {
 
     setQIndex(nextIndex);
     send('next_question', { index: nextIndex });
-    startTimer(quiz.questions[nextIndex]?.time_limit || 30);
+    startTimer(quiz.questions[nextIndex]?.timeLimit || 30);
   };
 
   const skipQuestion = () => goToQuestion(qIndex + 1);
@@ -134,8 +138,8 @@ export default function HostGame() {
         <h2>Game lobby</h2>
         <div className="room-code">
           <span className="muted">Room code</span>
-          <strong>{session.room_code}</strong>
-          <button className="btn ghost sm" onClick={() => navigator.clipboard.writeText(session.room_code)}>Copy</button>
+          <strong>{session.roomCode}</strong>
+          <button className="btn ghost sm" onClick={() => navigator.clipboard.writeText(session.roomCode)}>Copy</button>
         </div>
         <p className="muted">
           Share this code. Players join at <code>/join</code>.{' '}
@@ -174,15 +178,15 @@ export default function HostGame() {
 
       <div className="opt-grid host-opts">
         {currentQ?.options.map((opt, i) => (
-          <div key={i} className={`opt-btn host-opt ${opt === currentQ.correct_answer ? 'correct' : ''}`}>
+          <div key={i} className={`opt-btn host-opt ${opt === currentQ.correctAnswer ? 'correct' : ''}`}>
             {opt}
-            {opt === currentQ.correct_answer && <span className="correct-badge">✓ correct</span>}
+            {opt === currentQ.correctAnswer && <span className="correct-badge">✓ correct</span>}
           </div>
         ))}
       </div>
 
       <div className="host-actions">
-        <button className="btn ghost" onClick={() => nav(`/leaderboard/${session.game_id}`)}>
+        <button className="btn ghost" onClick={() => nav(`/leaderboard/${session.gameId}`)}>
           View leaderboard
         </button>
         <button className="btn primary" onClick={skipQuestion}>

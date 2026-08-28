@@ -13,7 +13,7 @@ export default function Dashboard() {
   const load = async () => {
     try {
       setLoading(true);
-      const data = await api('/quizzes/', { token });
+      const data = await api('/quizzes', { token });
       setQuizzes(Array.isArray(data) ? data : []);
     } catch (e) { setErr(e.message); }
     finally { setLoading(false); }

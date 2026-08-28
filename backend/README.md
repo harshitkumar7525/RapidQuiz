@@ -1,609 +1,168 @@
-# RapidQuiz — Backend
+# RapidQuiz API
 
-A real-time multiplayer quiz platform backend built with **Go**, **Gin**, **MongoDB**, **Redis**, and **WebSockets**.
+A real-time, multiplayer quiz platform backend built with **Spring Boot**, **MongoDB**, **Redis**, and **WebSockets**. Hosts create quizzes, spin up live game sessions with a shareable room code, and players join and compete for the fastest correct answers — with scores and leaderboards updated live.
 
-Hosts create quizzes, start game sessions with a shareable room code, and participants join to answer questions in real time. Scores are tracked per answer and ranked on a live Redis-backed leaderboard.
+## Features
 
----
+- **JWT-based authentication** — register/login, with protected routes secured by a lightweight custom filter (no Spring Security web layer required).
+- **Quiz management (CRUD)** — create, list, fetch, update, and delete quizzes, each made up of multiple-choice questions with a configurable per-question time limit.
+- **Live game sessions** — a host starts a session for their quiz and gets a unique 6-character room code that players use to join.
+- **Real-time updates over WebSockets** — question changes, game status changes, and score updates are broadcast to everyone in the room the moment they happen.
+- **Speed-based scoring** — correct answers earn 100 points plus a time bonus (up to +100) based on how quickly the participant answered relative to the question's time limit.
+- **Redis-backed leaderboards** — per-game leaderboards use a Redis sorted set for fast score tracking and top-N ranking, with a 24-hour TTL.
+- **MongoDB persistence** — users, quizzes, game sessions, participants, and submitted answers are all stored in MongoDB.
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Go |
-| HTTP Framework | Gin |
-| Database | MongoDB (via qmgo) |
-| Cache / Leaderboard | Redis |
-| Real-time | WebSockets (gorilla/websocket) |
-| Auth | JWT (HS256) |
-| Password Hashing | bcrypt |
-
----
+| Layer          | Technology                                   |
+|----------------|-----------------------------------------------|
+| Language       | Java 25                                        |
+| Framework      | Spring Boot 4.1 (Web MVC, WebSocket, Validation, Actuator) |
+| Database       | MongoDB (via Spring Data MongoDB)              |
+| Cache/Leaderboard | Redis (via Spring Data Redis)               |
+| Auth           | JWT (jjwt)                                     |
+| Build Tool     | Gradle (wrapper included)                      |
+| Container      | Docker (multi-stage build)                     |
 
 ## Project Structure
 
 ```
-backend/
-├── controllers/        # Request handlers
-│   ├── AuthControllers.go
-│   ├── GameControlllers.go
-│   ├── LeaderboardControllers.go
-│   └── QuizControllers.go
-├── database/           # DB + Redis connection helpers
-│   ├── db.go
-│   └── redis.go
-├── middlewares/        # JWT auth middleware
-│   └── auth.go
-├── models/             # Data models
-│   ├── Answer.go
-│   ├── GameSession.go
-│   ├── Participant.go
-│   ├── QuestionModel.go
-│   ├── QuizModel.go
-│   ├── UserModel.go
-│   └── WSmessage.go
-├── routers/            # Route registration
-│   ├── AuthRoutes.go
-│   ├── GameRoutes.go
-│   ├── LeaderboardRoutes.go
-│   └── QuizRoutes.go
-├── utils/              # JWT, hashing, helpers
-│   ├── hash.go
-│   ├── helperFunctions.go
-│   └── jwt.go
-├── websocket/          # WebSocket hub and handler
-│   ├── Broadcast.go
-│   ├── Handler.go
-│   └── Hub.go
-├── main.go
-├── go.mod
-└── .env.example
+src/main/java/in/harshitkumar7525/RapidQuiz/
+├── config/          # CORS and WebSocket configuration
+├── controllers/      # REST endpoints (Auth, Quiz, Game, Answer, Leaderboard)
+├── document/         # MongoDB documents (Users, Quizzes, Question, GameSession, Participant, Answer)
+├── dto/               # Request/response payloads
+├── exception/         # Custom exceptions + global exception handler
+├── repository/        # Spring Data MongoDB repositories
+├── security/           # JWT filter and utility
+├── service/             # Business logic (Auth, Quiz, Game, Answer, Leaderboard, RoomCodeGenerator)
+└── websocket/            # WebSocket handler, room registry, broadcast service
 ```
 
----
-
-## Setup
+## Getting Started
 
 ### Prerequisites
 
-- Go 1.21+
-- MongoDB instance (local or Atlas)
+- Java 25 (a matching JDK, or let the Gradle toolchain provision one)
+- MongoDB instance (local or remote)
 - Redis instance (local or remote)
 
-### Installation
+### Configuration
 
-```bash
-git clone https://github.com/harshitkumar7525/RapidQuiz.git
-cd RapidQuiz/backend
-go mod download
+Copy `.env.example` to `.env` (or otherwise set these as environment variables) and fill in the values:
+
 ```
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and fill in the values:
-
-```env
 MONGO_URI=mongodb://localhost:27017
-MONGO_DB=rapidquiz
-PORT=8080
-JWT_SECRET=your_secret_key_here
-REDIS_ADDR=localhost:6379
+MONGO_DATABASE=rapidquiz
+REDIS_HOST=localhost
+REDIS_PORT=6379
 REDIS_PASSWORD=
+PORT=8080
+FRONTEND_URL=http://localhost:5173
+JWT_SECRET=change-this-to-a-long-random-secret-of-at-least-32-characters
 ```
 
-| Variable | Description | Default |
-|---|---|---|
-| `MONGO_URI` | MongoDB connection string | — |
-| `MONGO_DB` | MongoDB database name | — |
-| `PORT` | HTTP server port | `8080` |
-| `JWT_SECRET` | Secret key for signing JWTs | — |
-| `REDIS_ADDR` | Redis host and port | `localhost:6379` |
-| `REDIS_PASSWORD` | Redis password (leave blank if none) | `""` |
+All of these have sane local-development defaults baked into `application.properties`, so the app will boot without an `.env` file as long as MongoDB and Redis are reachable at `localhost` on their default ports.
 
-### Running
+### Run locally
 
 ```bash
-go run main.go
+./gradlew bootRun
 ```
 
-Or build and run:
+The API will be available at `http://localhost:8080` (or your configured `PORT`).
+
+### Run with Docker
 
 ```bash
-go build -o rapidquiz
-./rapidquiz
+docker build -t rapidquiz-api .
+docker run -p 8080:8080 --env-file .env rapidquiz-api
 ```
 
----
+### Run tests
+
+```bash
+./gradlew test
+```
 
 ## Authentication
 
-Protected routes require a JWT token in the `Authorization` header:
+Protected endpoints expect a bearer token:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Tokens are issued on register and login, and expire after **48 hours**.
+Obtain a token via `POST /auth/register` or `POST /auth/login`. Tokens are valid for **48 hours**.
 
----
-
-## API Endpoints
+## API Reference
 
 ### Auth
 
-#### `POST /auth/register`
-
-Register a new user.
-
-**Request body**
-```json
-{
-  "name": "Alice",
-  "email": "alice@example.com",
-  "password": "secretpassword"
-}
-```
-
-**Success — `201 Created`**
-```json
-{
-  "message": "user registered successfully",
-  "token": "<jwt>"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Missing or invalid fields, or JSON parse error |
-| `409 Conflict` | Email is already registered |
-| `500 Internal Server Error` | Failed to save user or generate token |
-
----
-
-#### `POST /auth/login`
-
-Log in with email and password.
-
-**Request body**
-```json
-{
-  "email": "alice@example.com",
-  "password": "secretpassword"
-}
-```
-
-**Success — `200 OK`**
-```json
-{
-  "message": "login successful",
-  "token": "<jwt>"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Missing email or password |
-| `401 Unauthorized` | Email not found or password does not match |
-| `500 Internal Server Error` | Failed to generate token |
-
----
+| Method | Endpoint         | Auth | Description                  |
+|--------|------------------|------|-------------------------------|
+| POST   | `/auth/register` | No   | Create a user, returns a JWT |
+| POST   | `/auth/login`    | No   | Log in, returns a JWT         |
 
 ### Quizzes
 
-> All routes except `GET /quizzes/:quizId` require `Authorization: Bearer <token>`.
+| Method | Endpoint            | Auth | Description                                  |
+|--------|---------------------|------|-----------------------------------------------|
+| POST   | `/quizzes`           | Yes  | Create a quiz (title, description, questions) |
+| GET    | `/quizzes`           | Yes  | List quizzes created by the current user      |
+| GET    | `/quizzes/{quizId}`   | No   | Get a quiz by ID                              |
+| PATCH  | `/quizzes/{quizId}`   | Yes  | Update a quiz (creator only)                  |
+| DELETE | `/quizzes/{quizId}`   | Yes  | Delete a quiz (creator only)                  |
 
-#### `POST /quizzes/`
+Each question requires `question`, at least 2 `options`, a `correctAnswer`, and an optional `timeLimit` (seconds; defaults to 30 if omitted).
 
-Create a new quiz. 🔒
+### Game Sessions
 
-**Request body**
-```json
-{
-  "title": "General Knowledge",
-  "description": "A fun trivia quiz",
-  "questions": [
-    {
-      "question": "What is the capital of France?",
-      "options": ["Berlin", "Madrid", "Paris", "Rome"],
-      "correct_answer": "Paris",
-      "time_limit": 20
-    }
-  ]
-}
+| Method | Endpoint                          | Auth | Description                                             |
+|--------|------------------------------------|------|-----------------------------------------------------------|
+| POST   | `/games/create`                    | Yes  | Start a game session for a quiz you own; returns a room code |
+| POST   | `/games/join`                      | No   | Join a game by `roomCode` and a display `name`             |
+| GET    | `/games/{gameId}`                  | Yes  | Get full game details, including current question and participants |
+| PATCH  | `/games/{gameId}/status`           | Yes  | Host-only: transition game status (`WAITING → RUNNING → PAUSED/ENDED`) |
+| PATCH  | `/games/{gameId}/next-question`    | Yes  | Host-only: advance to the next question (or a specific `index`) |
+| POST   | `/games/{gameId}/answer`           | No   | Submit an answer for the current/a given question index    |
+| GET    | `/games/{gameId}/leaderboard`      | No   | Get the top 20 participants by score                       |
+
+**Game status transitions** are strictly enforced: `WAITING → RUNNING`, `RUNNING → PAUSED | ENDED`, `PAUSED → RUNNING | ENDED`. `ENDED` is terminal.
+
+**Scoring**: a correct answer earns `100 + timeBonus` points, where `timeBonus` scales linearly from 100 down to 0 based on how much of the question's time limit remains when the answer is submitted. Wrong answers earn 0. Each participant may only answer a given question once.
+
+### WebSockets
+
+Connect to:
+
+```
+ws://<host>/ws/{roomCode}
 ```
 
-**Question rules:**
-- `question` — required, non-empty string
-- `options` — required, minimum 2 entries
-- `correct_answer` — required; must exactly match one of the `options`
-- `time_limit` — optional integer (seconds); defaults to `30` if omitted or `<= 0` during scoring
+All clients connected to the same room code receive JSON messages of the shape `{ "type": "...", "data": {...} }` whenever the host or players trigger game events:
 
-**Success — `201 Created`**
-```json
-{
-  "message": "quiz created successfully"
-}
-```
+| Type            | Triggered by                          | Payload                                              |
+|------------------|-----------------------------------------|--------------------------------------------------------|
+| `game_status`    | `PATCH /games/{gameId}/status`          | `gameId`, `status`, `currentQuestion`                    |
+| `next_question`  | `PATCH /games/{gameId}/next-question`   | `questionIndex`, `question`, `options`, `timeLimit`      |
+| `score_update`   | `POST /games/{gameId}/answer`           | `participantId`, `name`, `isCorrect`, `score`             |
 
-**Errors**
+Clients can also send raw text messages over the socket, which are relayed as-is to every other peer in the room (e.g. for lightweight client-side signaling).
 
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Missing title, no questions, or a question fails validation |
-| `401 Unauthorized` | Missing or invalid token |
-| `500 Internal Server Error` | Database write failed |
+## Error Handling
 
----
+Errors are returned as JSON with an appropriate HTTP status, handled centrally by `GlobalExceptionHandler`:
 
-#### `GET /quizzes/`
+| Exception                  | Status |
+|------------------------------|--------|
+| `ResourceNotFoundException`  | 404    |
+| `UnauthorizedException`      | 401    |
+| `ForbiddenException`         | 403    |
+| `ConflictException`          | 409    |
+| `QuizValidationException`    | 400    |
+| Validation errors (`@Valid`) | 400    |
 
-Get all quizzes created by the authenticated user. 🔒
+## License
 
-**Success — `200 OK`**
-```json
-[
-  {
-    "id": "664abc123...",
-    "title": "General Knowledge",
-    "description": "A fun trivia quiz",
-    "created_by": "663aaa...",
-    "questions": [...],
-    "created_at": "2024-05-10T12:00:00Z",
-    "updated_at": "2024-05-10T12:00:00Z"
-  }
-]
-```
-
-Returns an empty array `[]` if the user has no quizzes.
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `401 Unauthorized` | Missing or invalid token |
-| `500 Internal Server Error` | Database read failed |
-
----
-
-#### `GET /quizzes/:quizId`
-
-Get a single quiz by ID. Public — no token required.
-
-**Success — `200 OK`**
-```json
-{
-  "id": "664abc123...",
-  "title": "General Knowledge",
-  "description": "A fun trivia quiz",
-  "created_by": "663aaa...",
-  "questions": [
-    {
-      "question": "What is the capital of France?",
-      "options": ["Berlin", "Madrid", "Paris", "Rome"],
-      "correct_answer": "Paris",
-      "time_limit": 20
-    }
-  ],
-  "created_at": "2024-05-10T12:00:00Z",
-  "updated_at": "2024-05-10T12:00:00Z"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Invalid quiz ID format |
-| `404 Not Found` | Quiz does not exist |
-
----
-
-#### `PATCH /quizzes/:quizId`
-
-Update an existing quiz. Only the quiz creator can update it. 🔒
-
-**Request body** — same shape as `POST /quizzes/`, all fields optional except validation rules still apply to any questions provided.
-
-**Success — `200 OK`**
-```json
-{
-  "message": "quiz updated successfully"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Invalid quiz ID, invalid JSON, or question validation failure |
-| `401 Unauthorized` | Missing or invalid token |
-| `404 Not Found` | Quiz not found or user is not the creator |
-| `500 Internal Server Error` | Database write failed |
-
----
-
-#### `DELETE /quizzes/:quizId`
-
-Delete a quiz. Only the quiz creator can delete it. 🔒
-
-**Success — `200 OK`**
-```json
-{
-  "message": "quiz deleted successfully"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Invalid quiz ID format |
-| `401 Unauthorized` | Missing or invalid token |
-| `404 Not Found` | Quiz not found or user is not the creator |
-| `500 Internal Server Error` | Database delete failed |
-
----
-
-### Games
-
-#### `POST /games/create`
-
-Start a new game session for a quiz. Only the quiz creator can start it. 🔒
-
-**Request body**
-```json
-{
-  "quiz_id": "664abc123..."
-}
-```
-
-**Success — `201 Created`**
-```json
-{
-  "message": "game session created successfully",
-  "room_code": "A1B2C3",
-  "game_id": "665def456...",
-  "status": "waiting",
-  "currentQuestion": 0
-}
-```
-
-Game statuses: `waiting` → `running` → `paused` / `ended`
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Missing `quiz_id` or invalid ID format |
-| `401 Unauthorized` | Missing or invalid token |
-| `403 Forbidden` | Authenticated user is not the quiz creator |
-| `404 Not Found` | Quiz does not exist |
-| `500 Internal Server Error` | Failed to generate room code or save session |
-
----
-
-#### `POST /games/join`
-
-Join a game session using a room code.
-
-**Request body**
-```json
-{
-  "room_code": "A1B2C3",
-  "name": "Bob"
-}
-```
-
-**Success — `200 OK`**
-```json
-{
-  "message": "joined successfully",
-  "participant_id": "666ghi789...",
-  "game_id": "665def456..."
-}
-```
-
-Save `participant_id` — it is required when submitting answers.
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Missing `room_code` or `name` |
-| `404 Not Found` | Room not found or game has ended |
-| `409 Conflict` | Display name already taken in this room |
-| `500 Internal Server Error` | Failed to save participant |
-
----
-
-#### `GET /ws/:roomCode`
-
-Open a WebSocket connection to a game room.
-
-**URL example:** `ws://localhost:8080/ws/A1B2C3`
-
-Once connected, any message sent by one client is broadcast to all other clients in the same room. The server uses the `WSMessage` shape:
-
-```json
-{
-  "type": "string",
-  "data": "<any>"
-}
-```
-
-The connection is closed automatically when the client disconnects or a write error occurs.
-
----
-
-### Leaderboard & Answers
-
-#### `POST /games/:gameId/answer`
-
-Submit an answer for a question. The game must be in `running` status.
-
-**Request body**
-```json
-{
-  "participant_id": "666ghi789...",
-  "question_index": 0,
-  "answer": "Paris"
-}
-```
-
-- `question_index` — zero-based index into the quiz's `questions` array
-- `answer` — the exact string of the chosen option
-
-**Scoring:** correct answers earn `100 + time_limit` points (using the question's `time_limit`, defaulting to `30` if unset).
-
-**Success — `200 OK`**
-```json
-{
-  "is_correct": true,
-  "score": 120,
-  "message": "correct answer!"
-}
-```
-
-Or for a wrong answer:
-```json
-{
-  "is_correct": false,
-  "score": 0,
-  "message": "wrong answer"
-}
-```
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Invalid game ID, missing fields, or invalid question index |
-| `400 Bad Request` | Game is not currently running |
-| `404 Not Found` | Game or quiz not found |
-| `409 Conflict` | Answer already submitted for this question by this participant |
-| `500 Internal Server Error` | Failed to save answer or update leaderboard |
-
----
-
-#### `GET /games/:gameId/leaderboard`
-
-Get the top 20 participants for a game, ranked by total score.
-
-**Success — `200 OK`**
-```json
-{
-  "game_id": "665def456...",
-  "leaderboard": [
-    {
-      "rank": 1,
-      "participant_id": "666ghi789...",
-      "name": "Bob",
-      "score": 340
-    },
-    {
-      "rank": 2,
-      "participant_id": "666jkl012...",
-      "name": "Carol",
-      "score": 220
-    }
-  ]
-}
-```
-
-Scores are served from Redis and update in real time as answers are submitted. Leaderboard data expires after **24 hours**.
-
-**Errors**
-
-| Status | Reason |
-|---|---|
-| `400 Bad Request` | Invalid game ID format |
-| `500 Internal Server Error` | Redis read failed |
-
----
-
-## Data Models
-
-### User
-| Field | Type | Notes |
-|---|---|---|
-| `id` | ObjectID | Auto-generated |
-| `name` | string | |
-| `email` | string | Unique |
-| `password` | string | bcrypt hashed; hidden from JSON responses |
-| `created_at` | time | |
-| `updated_at` | time | |
-
-### Quiz
-| Field | Type | Notes |
-|---|---|---|
-| `id` | ObjectID | Auto-generated |
-| `title` | string | Required |
-| `description` | string | Optional |
-| `created_by` | ObjectID | Set from JWT on creation |
-| `questions` | []Question | At least 1 required |
-| `created_at` | time | |
-| `updated_at` | time | |
-
-### Question
-| Field | Type | Notes |
-|---|---|---|
-| `question` | string | Required |
-| `options` | []string | Min 2 |
-| `correct_answer` | string | Must match one of `options` |
-| `time_limit` | int | Seconds; defaults to 30 if unset |
-
-### GameSession
-| Field | Type | Notes |
-|---|---|---|
-| `id` | ObjectID | Auto-generated |
-| `quiz_id` | ObjectID | |
-| `host_id` | ObjectID | Set from JWT |
-| `room_code` | string | 6-char alphanumeric, e.g. `A1B2C3` |
-| `status` | string | `waiting`, `running`, `paused`, `ended` |
-| `current_question` | int | Zero-based index |
-| `started_at` | time? | Optional |
-| `ended_at` | time? | Optional |
-
-### Participant
-| Field | Type | Notes |
-|---|---|---|
-| `id` | ObjectID | Auto-generated |
-| `game_id` | ObjectID | |
-| `name` | string | Unique within a room |
-| `joined_at` | time | |
-
-### Answer
-| Field | Type | Notes |
-|---|---|---|
-| `id` | ObjectID | Auto-generated |
-| `game_id` | ObjectID | |
-| `participant_id` | ObjectID | |
-| `question_index` | int | |
-| `answer` | string | The chosen option text |
-| `is_correct` | bool | |
-| `score` | int | 0 if wrong; `100 + time_limit` if correct |
-| `answered_at` | time | |
-
----
-
-## MongoDB Collections
-
-| Collection | Description |
-|---|---|
-| `users` | Registered user accounts |
-| `quizzes` | Quiz definitions with questions |
-| `game_sessions` | Active and historical game sessions |
-| `participants` | Players who joined a game |
-| `answers` | Submitted answers per participant per question |
-
----
-
-## Redis Keys
-
-| Key pattern | Type | TTL | Description |
-|---|---|---|---|
-| `leaderboard:<gameId>` | Sorted Set | 24h | Participant scores; member = `participant_id`, score = cumulative points |
+No license file is currently included in this repository.
