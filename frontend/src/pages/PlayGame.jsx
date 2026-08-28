@@ -49,7 +49,7 @@ export default function PlayGame() {
     setPicked(null);
     setResult(null);
     const q = quizRef.current?.questions?.[index];
-    if (q) startTimer(q.time_limit || 30);
+    if (q) startTimer(q.timeLimit || 30);
   }, [startTimer]);
 
   // Single WebSocket connection — handles ALL message types
@@ -76,12 +76,13 @@ export default function PlayGame() {
         // Start timer for question 0 — quizRef.current is already up-to-date above,
         // so no setTimeout needed; we read it directly.
         const firstQ = quizPayload?.questions?.[0];
-        if (firstQ) startTimer(firstQ.time_limit || 30);
+        if (firstQ) startTimer(firstQ.timeLimit || 30);
         break;
       }
 
       case 'next_question': {
-        const nextIndex = (msg.data && msg.data.index != null) ? msg.data.index : 0;
+        const raw = msg.data && (msg.data.index ?? msg.data.questionIndex);
+        const nextIndex = raw != null ? raw : 0;
         advanceToQuestion(nextIndex);
         break;
       }
@@ -135,7 +136,7 @@ export default function PlayGame() {
     try {
       const res = await api(`/games/${gameId}/answer`, {
         method: 'POST',
-        body: { participant_id: participantId, question_index: qIndex, answer },
+        body: { participantId, questionIndex: qIndex, answer },
       });
       setResult(res);
     } catch (e) { setErr(e.message); }
@@ -189,8 +190,8 @@ export default function PlayGame() {
       <div className="opt-grid">
         {currentQ.options.map((opt, i) => {
           const isPicked = picked === opt;
-          const correct = result && result.is_correct && isPicked;
-          const wrong = result && !result.is_correct && isPicked;
+          const correct = result && result.correct && isPicked;
+          const wrong = result && !result.correct && isPicked;
           return (
             <button
               key={i}
@@ -205,8 +206,8 @@ export default function PlayGame() {
       </div>
 
       {result && (
-        <div className={`result ${result.is_correct ? 'good' : 'bad'}`}>
-          {result.is_correct ? `✅ Correct! +${result.score} pts` : '❌ Wrong answer'}
+        <div className={`result ${result.correct ? 'good' : 'bad'}`}>
+          {result.correct ? `✅ Correct! +${result.score} pts` : '❌ Wrong answer'}
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const blank = () => ({ question: '', options: ['', ''], correct_answer: '', time_limit: 30 });
+const blank = () => ({ question: '', options: ['', ''], correctAnswer: '', timeLimit: 30 });
 
 export default function QuizEditor() {
   const { quizId } = useParams();
@@ -33,7 +33,7 @@ export default function QuizEditor() {
   const addOpt = (i) => updateQ(i, { options: [...questions[i].options, ''] });
   const rmOpt = (i, j) => {
     const opts = questions[i].options.filter((_, oi) => oi !== j);
-    updateQ(i, { options: opts, correct_answer: questions[i].correct_answer === questions[i].options[j] ? '' : questions[i].correct_answer });
+    updateQ(i, { options: opts, correctAnswer: questions[i].correctAnswer === questions[i].options[j] ? '' : questions[i].correctAnswer });
   };
   const addQ = () => setQuestions(qs => [...qs, blank()]);
   const rmQ = (i) => setQuestions(qs => qs.length === 1 ? qs : qs.filter((_, idx) => idx !== i));
@@ -42,9 +42,9 @@ export default function QuizEditor() {
     e.preventDefault();
     setErr(''); setSaving(true);
     try {
-      const body = { title, description, questions: questions.map(q => ({ ...q, time_limit: Number(q.time_limit) || 30 })) };
+      const body = { title, description, questions: questions.map(q => ({ ...q, timeLimit: Number(q.timeLimit) || 30 })) };
       if (editing) await api(`/quizzes/${quizId}`, { method: 'PATCH', token, body });
-      else await api('/quizzes/', { method: 'POST', token, body });
+      else await api('/quizzes', { method: 'POST', token, body });
       nav('/dashboard');
     } catch (e) { setErr(e.message); }
     finally { setSaving(false); }
@@ -64,16 +64,16 @@ export default function QuizEditor() {
               {questions.length > 1 && <button type="button" className="btn ghost sm" onClick={() => rmQ(i)}>Remove</button>}
             </div>
             <label>Question<input required value={q.question} onChange={e => updateQ(i, { question: e.target.value })} /></label>
-            <label>Time limit (s)<input type="number" min={5} max={300} value={q.time_limit} onChange={e => updateQ(i, { time_limit: e.target.value })} /></label>
+            <label>Time limit (s)<input type="number" min={5} max={300} value={q.timeLimit} onChange={e => updateQ(i, { timeLimit: e.target.value })} /></label>
             <div className="opts">
               <span className="muted">Options (mark the correct one)</span>
               {q.options.map((opt, j) => (
                 <div className="opt-row" key={j}>
-                  <input type="radio" name={`correct-${i}`} checked={q.correct_answer === opt && opt !== ''} onChange={() => updateQ(i, { correct_answer: opt })} />
+                  <input type="radio" name={`correct-${i}`} checked={q.correctAnswer === opt && opt !== ''} onChange={() => updateQ(i, { correctAnswer: opt })} />
                   <input required value={opt} onChange={e => {
                     const prev = q.options[j];
                     updateOpt(i, j, e.target.value);
-                    if (q.correct_answer === prev) updateQ(i, { correct_answer: e.target.value });
+                    if (q.correctAnswer === prev) updateQ(i, { correctAnswer: e.target.value });
                   }} placeholder={`Option ${j + 1}`} />
                   {q.options.length > 2 && <button type="button" className="btn ghost sm" onClick={() => rmOpt(i, j)}>×</button>}
                 </div>

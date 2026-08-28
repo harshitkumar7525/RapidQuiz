@@ -32,7 +32,7 @@ export default function Leaderboard() {
       {rows.length === 0 ? <p className="muted">No scores yet.</p> : (
         <ol className="lb-list">
           {rows.map(r => (
-            <li key={r.participant_id} className={`lb-row rank-${r.rank}`}>
+            <li key={r.participantId} className={`lb-row rank-${r.rank}`}>
               <span className="rank">#{r.rank}</span>
               <span className="name">{r.name}</span>
               <span className="score">{r.score}</span>
